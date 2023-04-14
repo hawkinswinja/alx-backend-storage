@@ -8,14 +8,14 @@ from functools import wraps
 
 def count_calls(method: Callable) -> Callable:
     """wraps the function and increments its count"""
-    key = method.__qualname__
-    
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         """increments the key of the method"""
-        self._redis.incr(key)
+        self._redis.incr(method.__qualname__)
         return method(self, *args, **kwargs)
     return wrapper
+
 
 def call_history(method: Callable) -> Callable:
     """wraps method to add data to redis list"""
@@ -27,6 +27,19 @@ def call_history(method: Callable) -> Callable:
         self._redis.rpush(method.__qualname__ + ':outputs', output)
         return output
     return wrapper2
+
+
+def replay(fn: Callable) -> None:
+    """display history of fn and its output"""
+    name = fn.__qualname__
+    r = redis.Redis()
+    args = r.lrange(name + ':inputs', 0, -1)
+    outputs = r.lrange(name + ':outputs', 0, -1)
+    print('{} was called {} times:'.format(name, r.llen(name + ':inputs')))
+    for result in zip(args, outputs):
+        inputs = result[0].decode('utf-8')
+        out = result[1].decode('utf-8')
+        print('{}(*{}) -> {}'.format(name, inputs, out))
 
 
 class Cache():
